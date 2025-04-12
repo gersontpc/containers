@@ -132,7 +132,8 @@ Agora iremos utilizar o GitHub CodeSpaces para começar a construir o nosso work
 
 ![](./img/027.png)
 
-036. Preencha as informações, em **Repository** (selecione o repositório recém importado), **Branch** (selecione a branch *infra*), **Region** (selecione a região *US East*) e em **Machine type** (selecione *2-core*), por último clique em **Create codespace**
+036. Preencha as informações, em **Repository** (selecione o repositório USERNAME/container-technologies), **Branch** (selecione a branch *main*), **Region** (selecione a região *US East*) e em **Machine type** (selecione *2-core*), por último clique em **Create codespace**
+036. Preencha as informações, em **Repository** (selecione o repositório ), **Branch** (selecione a branch *infra*), **Region** (selecione a região *US East*) e em **Machine type** (selecione *2-core*), por último clique em **Create codespace**
 
 ![](./img/028.png)
 
@@ -437,7 +438,7 @@ output "nlb_dns_name" {
 049. Copie e cole o conteúdo abaixo no arquivo `versions.tf`.
 
 ```terraform
-xterraform {
+terraform {
   required_version = "1.10.5"
   required_providers {
     aws = {
@@ -567,12 +568,12 @@ terraform.rc
 
 ![](./img/038.png)
 
-056. Para executarmos o nosso workflow, precisamos criar a feature branch infra `feature/init-infra`.
+056. Para executarmos o nosso workflow, precisamos criar a feature branch infra `infra`.
 
 ![](./img/058.png)
 
 ```bash
-git checkout -b feature/init-infra
+git checkout -b infra
 
 ```
 
@@ -588,21 +589,21 @@ git commit -m "chore: create ci/cd infra"
 058. Realize o push das alterações.
 
 ```bash
-git push --set-upstream origin feature/init-infra
+git push --set-upstream origin infra
 ```
 
 ![](./img/060.png)
 
 
-059. Volte para o repositório do github, clique na aba **Pull requests**, e repare que terá um novo pull request: **feature/init-infra had recent pushes 2 minutes ago**, clique no botão **Compare & pull request**.
+059. Volte para o repositório do github, clique na aba **Pull requests**, e repare que terá um novo pull request: **infra had recent pushes 2 minutes ago**, clique no botão **Compare & pull request**.
 
 ![](./img/061.png)
 
-060. Abra o pull request da branch **feature/init-infra** para branch **infra**.
+060. Abra o pull request da branch **infra** para branch **infra**.
 
 ![](./img/063.png)
 
-061. Faça o merge clicando no botão **Merge pull request**, para mesclar a **feature/init-infra** para branch **infra**.
+061. Faça o merge clicando no botão **Merge pull request**, para mesclar a **infra** para branch **infra**.
 
 ![](./img/064.png)
 
