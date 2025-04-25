@@ -1,0 +1,34 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: container-technologies
+  labels:
+    app: container-technologies
+  namespace: container-technologies
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: container-technologies
+  strategy:
+    rollingUpdate:
+      maxSurge: 100%
+      maxUnavailable: 25%
+  template:
+    metadata:
+      labels:
+        app: container-technologies
+    spec:
+      containers:
+      - name: container-technologies
+        image: gersontpc/container-technologies:v1.0.0
+        ports:
+        - containerPort: 80
+        resources:
+          limits:
+            cpu: "100m"
+            memory: "256Mi"
+          requests:
+            cpu: "50m"
+            memory: "128Mi"
