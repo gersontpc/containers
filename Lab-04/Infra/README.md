@@ -4,9 +4,7 @@ Antes de abordarmos sobre a estratégia de Branch, nós iremos utilizar um mono-
 
 Iremos utilizar 2 Branchs principais, uma branch de `infra` que ao realizar o merge nela, irá acionar o workflow (pipeline) de infra, e a branch `main` que será utilizada para realizar o ci/cd de nossa aplicação.
 
-![](./img/github-flow-infra.png)
-
-Os engenheiros irão utilizar `feature` branchs a partir da branch que será utilizada, seja de infra ou aplicação.
+Primeiro você irá precisar iniciar o AWS Academy.
 
 ## Acessando o AWS Academy
 
@@ -122,40 +120,40 @@ Alguns links recomendados para iniciar a jornada no GitHub.
 
 022. Agora que você já tem a conta no github, após efetuar o login, vá até o canto superior direito, clique em [+], em seguida clique em **Import repository**.
 
+![](./img/022.png)
+
 > **Import vs fork** 
 > 
 > - **Import:** A importação geralmente se refere a trazer código de um repositório externo para um repositório existente ou para um novo repositório. Cria uma cópia completa e independente do repositório original em sua própria conta.
 > 
 > - **Fork:** Um fork cria uma cópia completa e independente do repositório original em sua própria conta. Essa cópia é um repositório separado, com seu próprio histórico de commits e branches. O fork é frequentemente usado para contribuir com projetos de código aberto. Você pode fazer alterações no seu fork e, em seguida, enviar um "pull request" para o repositório original, solicitando que suas alterações sejam incorporadas. O fork oferece isolamento, permitindo que você experimente e faça alterações sem afetar o repositório original.
 
+023. Em **Import your project to GitHub**, em **Your source repository details** insira o repositório https://github.com/gersontpc/containers-lab, em **Repository name***: insira o nome `container-technologies`, deixe o repositório público selecionando **Public** e por último clique em **Begin Import**.
+
+![](./img/023.png)
+
+Aguarde alguns minutos até o repositório ser importado.
+
+![](./img/024.png)
 
 ### Pipeline de infra
 
 ![](./img/cicd-infra.png)
 
-Neste primeiro workflow, iremos provisionar a da arquitetura apresentada em aula  na AWS utilizando Terraform, para automatizar este processo, iremos utilizar o GitHub Actions, neste workflow iremos utilizar o TFlint, TFsec, Terraform Docs.
+Neste primeiro workflow, você irá provisionar automaticamente a infraestrutura de um cluster ECS utilizando o GitHub Actions. Durante o processo, serão aplicadas as ferramentas TFLint, tfsec e terraform-docs para garantir qualidade, segurança e documentação da infraestrutura como código.
 
+Para maiores informações consulte as documentações oficiais:
 - [GitHub Actions](https://docs.github.com/pt/actions/writing-workflows/quickstart)
 - [TFLint](https://github.com/terraform-linters/tflint)
 - [Terraform Docs](https://terraform-docs.io/)
 - [ECS - Elastic Container Service](https://docs.aws.amazon.com/pt_br/AmazonECS/latest/developerguide/Welcome.html)
 
-### GitHub Workflow
-
-Antes de abordarmos sobre a estratégia de Branch, nós iremos utilizar um mono-repo para contruir uma pipeline para provisionar a infraestrutura, realizar os build/testes de nossa aplicação e por último o deploy. 
-
-Iremos utilizar 2 Branchs principais, uma branch de `infra` que ao realizar o merge nela, irá acionar o workflow (pipeline) de infra, e a branch `main` que será utilizada para realizar o ci/cd de nossa aplicação.
-
-![](./img/github-flow-infra.png)
-
-Os engenheiros irão utilizar `feature` branchs a partir da branch que será utilizada, seja de infra ou aplicação.
-
 
 ### Criando as secrets necessárias
 
-Antes de iniciar o desenvolvimento  da pipeline é necessário criar algumas secrets e variáveis para que workflow faça a criação do cluster ECS na AWS, e preencha esses valores em momento de build.
+ Neste momento seu repositório já deve ter sido importado, então será necessário criar algumas secrets e variáveis para que workflow faça a criação do cluster ECS na AWS, essas `secrets` e `variáveis` serão utilizadas workflow para o providionamento da infra.
 
-Secrets a serem criadas: 
+Secrets necessárias:
 
 ```shell
 AWS_ACCESS_KEY_ID
@@ -164,22 +162,20 @@ AWS_SESSION_TOKEN
 AWS_ACCOUNT_ID
 ```
 
-Variáveis a serem criadas:
+Variáveis necessárias:
 
 ```shell
 AWS_REGION
 ```
 
-
-> O valor das secrets são mascarados na Actions, então fique tranquilo que os valores delas não serão expostos.
-> 
+> Os valores das secrets são mascarados no momento da execução das Actions, então fiquem tranquilos que os valores delas não serão expostos.
 > Mascarando da seguinte forma: **"<AWS_ACCOUNT_ID>-tfstate"** para **"\*\*\*-tfstate"** 
 
-Para criar as variáveis no github, vá até o seu repositório importado [lab-ci-cd](lab-ci-cd), clique na aba **Settings**, no menu esquerdo, vá até **Secrets and variables**, **Actions** e clique em **New repository secret**.
+Para criar as variáveis no github, vá até o seu repositório importado [containers-lab](containers-lab), clique na aba **Settings**, no menu esquerdo, vá até **Secrets and variables**, **Actions** e clique em **New repository secret**.
 
 ![](./img/039.png)
 
-023. Mas antes de criar a secret, vá para o console do AWS Academy, clique em **AWS Details**,  em **AWS CLI**, clique no botão **Show**.
+024. Mas antes de criar a secret, vá para o console do AWS Academy, clique em **AWS Details**,  em **AWS CLI**, clique no botão **Show**.
 
 ![](./img/040.png)
 
@@ -197,7 +193,7 @@ Pronto, secret criada!
 
 Agora iremos repetir o mesmo processo para o restante das secrets!
 
-024. Crie a secret AWS_SECRET_ACCESS_KEY, clique no botão **New repository secret**
+025. Crie a secret AWS_SECRET_ACCESS_KEY, clique no botão **New repository secret**
 
 ![](./img/044.png)
 
@@ -209,7 +205,7 @@ E cole no valor da Secret, e clique em **Add Secret**.
 
 ![](./img/046.png)
 
-025. Crie a secret AWS_SESSION_TOKEN, clique no botão **New repository secret**
+026. Crie a secret AWS_SESSION_TOKEN, clique no botão **New repository secret**
 
 ![](./img/047.png)
 
@@ -221,7 +217,7 @@ Cole no valor na Secret, e clique em **Add Secret**.
 
 ![](./img/049.png)
 
-026. Crie a secret AWS_ACCOUNT_ID, clique no botão **New repository secret**
+027. Crie a secret AWS_ACCOUNT_ID, clique no botão **New repository secret**
 
 ![](./img/050.png)
 
@@ -239,17 +235,17 @@ Pronto! todas as secrets necessárias foram criadas!
 
 ![](./img/055.png)
 
-027. Agora será necessário adicionar qual será a nossa **Região** da AWS que iremos utilizar, mas ao invés de ser uma secret, será uma variável.
+028. Agora será necessário adicionar qual será a nossa **Região** da AWS que iremos utilizar, mas ao invés de ser uma secret, será uma variável.
 
 Para adicionar a variável **AWS_REGION**, volte para o seu repositório e clique em **Settings**, **Secrets and variables** > **Actions** > Clique na aba **Variables** e por último clique em **New repository variable**, e adicione a variável `AWS_REGION`.
 
 ![](./img/0054.png)
 
-028. Volte no console AWS, clique em região e copie a região que está utilizando (us-east-1).
+029. Volte no console AWS, clique em região e copie a região que está utilizando (us-east-1).
 
 ![](./img/0055.png)
 
-029. Volte no GitHub e cole no valor da variável `AWS_REGION`, por último clique em **Add variable**.
+030. Volte no GitHub e cole no valor da variável `AWS_REGION`, por último clique em **Add variable**.
 
 ![](./img/0056.png)
 
@@ -257,11 +253,11 @@ Pronto! Variável adicionada com sucesso!
 
 ![](./img/0057.png)
 
-030. Ainda nas configurações do repositório (**Settings**), no menu esquerdo, clique em **Actions** em seguida **General**.
+031. Ainda nas configurações do repositório (**Settings**), no menu esquerdo, clique em **Actions** em seguida **General**.
 
 ![](./img/056.png)
 
-031. Desça a página até **Workflow permissions** e altere a permissão para **Read and write permissions** e por último clique em **Save**.
+032. Desça a página até **Workflow permissions** e altere a permissão para **Read and write permissions** e por último clique em **Save**.
 
 > Essa permissão permite que os workflows tenham permissão de leitura e escrita no repositório, permitindo realizar commits se necessário no repositório.
 
@@ -271,26 +267,26 @@ Pronto! Variável adicionada com sucesso!
 
 Agora iremos utilizar o GitHub CodeSpaces para começar a construir o nosso workflow de infra.
 
-032. Na página inicial do GitHub (https://github.com/), no canto superior direito, clique em  [+], e em **New codespace**.
+033. Na página inicial do GitHub (https://github.com/), no canto superior direito, clique em  [+], e em **New codespace**.
 
 ![](./img/027.png)
 
-033. Preencha as informações, em **Repository** (selecione o repositório USERNAME/container-technologies), **Branch** (selecione a branch *main*), **Region** (selecione a região *US East*) e em **Machine type** (selecione *2-core*), por último clique em **Create codespace**
-034. Preencha as informações, em **Repository** (selecione o repositório ), **Branch** (selecione a branch *infra*), **Region** (selecione a região *US East*) e em **Machine type** (selecione *2-core*), por último clique em **Create codespace**
+034. Preencha as informações, em **Repository** (selecione o repositório USERNAME/container-technologies), **Branch** (selecione a branch *main*), **Region** (selecione a região *US East*) e em **Machine type** (selecione *2-core*), por último clique em **Create codespace**
+035. Preencha as informações, em **Repository** (selecione o repositório ), **Branch** (selecione a branch *infra*), **Region** (selecione a região *US East*) e em **Machine type** (selecione *2-core*), por último clique em **Create codespace**
 
 ![](./img/028.png)
 
-035. Após criar o codespace, seremos redirecionados para uma [IDE](https://github.com/features/codespaces).
+036. Após criar o codespace, seremos redirecionados para uma [IDE](https://github.com/features/codespaces).
 
 ![](./img/029.png)
 
-036. Ao decorrer do nosso laboratório, iremos utilizar o terminal para digitar os comandos necessários para criarmos o nosso workflow.
+037. Ao decorrer do nosso laboratório, iremos utilizar o terminal para digitar os comandos necessários para criarmos o nosso workflow.
 
 ![](./img/030.png)
 
 ### Criando nossa pipeline de infra
 
-037. Seguindo a nossa estratégia de branchs (GitHub Workflow), execute o comando do git para fazer o checkout na branch de infra.
+038. Seguindo a nossa estratégia de branchs (GitHub Workflow), execute o comando do git para fazer o checkout na branch de infra.
 
 ```shell
 git checkout infra
@@ -298,7 +294,7 @@ git checkout infra
 
 ![](./img/031.png)
 
-038. Execute o comando abaixo para criar os diretórios  `.github/workflows`  e arquivo `infra.yml`  para inserir o código do nosso workflow.
+039. Execute o comando abaixo para criar os diretórios  `.github/workflows`  e arquivo `infra.yml`  para inserir o código do nosso workflow.
 
 ```shell
 mkdir -pv .github/workflows
@@ -307,7 +303,7 @@ touch .github/workflows/infra.yml
 
 ![](./img/032.png)
 
-039. Abra o arquivo `infra.yml` e cole o conteúdo abaixo para a criação do nosso workflow.
+040. Abra o arquivo `infra.yml` e cole o conteúdo abaixo para a criação do nosso workflow.
 
 ```yaml
 name: 'Deploy Infra'
@@ -435,7 +431,7 @@ Ficando da seguinte forma:
 
 ![](./img/033.png)
 
-040. Agora iremos executar o comando para criar o nosso diretório de infra e os arquivos necessários para o terraform.
+041. Agora iremos executar o comando para criar o nosso diretório de infra e os arquivos necessários para o terraform.
 
 ```shell
 mkdir -p infra && touch infra/{main.tf,nlb.tf,outputs.tf,sg.tf,variables.tf,versions.tf,terraform.tfvars}
@@ -445,9 +441,9 @@ Arquivos criados conforme o comando executado!
 
 ![](./img/034.png)
 
-041. Agora iremos colocar os nossos "bloquinhos" do terraform de acordo com os arquivos criados.
+042. Agora iremos colocar os nossos "bloquinhos" do terraform de acordo com os arquivos criados.
 
-042. Copie e cole o conteúdo abaixo no arquivo `main.tf`
+043. Copie e cole o conteúdo abaixo no arquivo `main.tf`
 
 ```terraform
 resource "aws_ecs_cluster" "this" {
@@ -460,7 +456,7 @@ resource "aws_ecs_cluster" "this" {
 }
 ```
 
-043. Copie o conteúdo abaixo e cole no arquivo `nlb.tf`.
+044. Copie o conteúdo abaixo e cole no arquivo `nlb.tf`.
 
 ```terraform
 # Crie um Network Load Balancer
@@ -502,7 +498,7 @@ resource "aws_lb_target_group" "this" {
 }
 ```
 
-044. Copie e cole o conteúdo abaixo no arquivo `sg.tf`.
+045. Copie e cole o conteúdo abaixo no arquivo `sg.tf`.
 
 ```terraform
 # Crie um grupo de segurança
@@ -546,7 +542,7 @@ resource "aws_vpc_security_group_ingress_rule" "container" {
 
 ```
 
-045. Copie e cole o conteúdo abaixo no arquivo `variables.tf`.
+046. Copie e cole o conteúdo abaixo no arquivo `variables.tf`.
 
 ```terraform
 variable "cluster_name" {
@@ -566,7 +562,7 @@ variable "vpc_id" {
 ```
 
 
-046. Copie e cole o conteúdo abaixo no arquivo `outputs.tf`.
+047. Copie e cole o conteúdo abaixo no arquivo `outputs.tf`.
 
 ```terraform
 output "load_balancer_arn" {
@@ -578,7 +574,7 @@ output "nlb_dns_name" {
 }
 ```
 
-047. Copie e cole o conteúdo abaixo no arquivo `versions.tf`.
+048. Copie e cole o conteúdo abaixo no arquivo `versions.tf`.
 
 ```terraform
 terraform {
@@ -711,58 +707,37 @@ terraform.rc
 
 ![](./img/038.png)
 
-055. Para executarmos o nosso workflow, precisamos criar a feature branch infra `infra`.
-
-![](./img/058.png)
-
-```bash
-git checkout -b infra
-
-```
-
-056. Agora iremos commitar as nossas alterações.
+055. Para executar o workflow, será necessário commitar as nossas alterações.
 
 ```bash
 git add -A
-git commit -m "chore: create ci/cd infra"
+git commit -m "chore: create workflow and infra ECS"
 ```
 
-![](./img/059.png)
+![](./img/0059.png)
 
-057. Realize o push das alterações.
+056. Realize o push das alterações.
 
 ```bash
-git push --set-upstream origin infra
+git push
 ```
 
 ![](./img/060.png)
 
 
-058. Volte para o repositório do github, clique na aba **Pull requests**, e repare que terá um novo pull request: **infra had recent pushes 2 minutes ago**, clique no botão **Compare & pull request**.
-
-![](./img/061.png)
-
-059. Abra o pull request da branch **infra** para branch **infra**.
-
-![](./img/063.png)
-
-060. Faça o merge clicando no botão **Merge pull request**, para mesclar a **infra** para branch **infra**.
-
-![](./img/064.png)
-
-061. Após realizar o merge a *Action* será acionada, clique na aba **Actions**, de clique no workflow **Deploy Infra**, para acompanhar o provisionamento da infra.
+057. Após realizar o push a *Action* será acionada, clique na aba **Actions**, de clique no workflow **Deploy Infra**, para acompanhar o provisionamento da infra.
 
 ![](./img/065.png)
 
-062. Ao clicar em **Deploy infra**, terá a visualização do workflow com o deploy da infra (Cada um dos steps será explicados um a um em sala de aula!), agora clique no step **Terraform Creating and Update**, para visualizar a criação da infra.
+058. Ao clicar em **Deploy infra**, terá a visualização do workflow com o deploy da infra (Cada um dos steps será explicados um a um em sala de aula!), agora clique no step **Terraform Creating and Update**, para visualizar a criação da infra.
 
 ![](./img/066.png)
 
-063. Repare que foram criados 5 recursos conforme o output do `terraform apply`.
+059. Repare que foram criados 5 recursos conforme o output do `terraform apply`.
 
 ![](./img/067.png)
 
-064. Agora volte no [console](https://us-east-1.console.aws.amazon.com/console/home?region=us-east-1) da AWS para checar se o Cluster ECS, Security Group e NLB foram provisionados conforme esperado.
+060. Agora volte no [console](https://us-east-1.console.aws.amazon.com/console/home?region=us-east-1) da AWS para checar se o Cluster ECS, Security Group e NLB foram provisionados conforme esperado.
 
 Abaixo o print com os recursos criados!
 
@@ -776,23 +751,3 @@ EC2 > Load Balancing > Load Balancers
 ![](./img/070.png)
 
 Show! agora que temos a nossa infraestrutura necessária provisionada iremos seguir para o workflow da nossa app!
-
-065. Volte para o seu repositório e vá até a aba de **Pull requests**, e clique em **New pull request** para sincronizar o código com a branch `main`. 
-
-![](./img/071.png)
-
-066. Faça o pull request da branch `infra` para a branch `main` (Lembrando que é da esquerda para a direita), e por último clique em **Create pull request**.
-
-![](./img/072.png)
-
-067. Clique em **Merge pull request**, para realizar a mesclagem da branch `infra` com a `main`.
-
-![](./img/073.png)
-
-068. E por fim clique em **Confirm merge**, para concluir a mesclagem.
-
-![](./img/074.png)
-
-069. Pronto, merge realizado com sucesso!
-
-![](./img/075.png)
