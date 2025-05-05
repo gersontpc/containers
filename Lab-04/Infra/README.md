@@ -1,14 +1,25 @@
-### GitHub Workflow
+### Introdução
+Neste laboratório, você aprenderá a criar e provisionar a infraestrutura necessária para executar aplicações em um cluster ECS (Elastic Container Service) utilizando o Terraform e o GitHub Actions. O objetivo é automatizar o provisionamento da infraestrutura como código (IaC), garantindo qualidade, segurança e documentação durante o processo.
 
-Antes de abordarmos sobre a estratégia de Branch, nós iremos utilizar um mono-repo para contruir uma pipeline para provisionar a infraestrutura, realizar os build/testes de nossa aplicação e por último o deploy. 
+Ao longo deste laboratório, você irá:
 
-Iremos utilizar 2 Branchs principais, uma branch de `infra` que ao realizar o merge nela, irá acionar o workflow (pipeline) de infra, e a branch `main` que será utilizada para realizar o ci/cd de nossa aplicação.
+Configurar o ambiente AWS Academy para acessar os recursos necessários.
+Criar um bucket S3 para armazenar o statefile do Terraform.
+Configurar secrets e variáveis no GitHub para integração com a AWS.
+Criar e configurar um workflow no GitHub Actions para provisionar a infraestrutura.
+Utilizar o Terraform para criar recursos como clusters ECS, Network Load Balancers (NLB), grupos de segurança e outros componentes essenciais.
+Validar o provisionamento da infraestrutura no console da AWS.
+Este laboratório é uma oportunidade prática para aplicar conceitos de DevOps, como automação de infraestrutura, controle de versão e integração contínua, utilizando ferramentas amplamente adotadas no mercado. Ao final, você terá uma infraestrutura funcional e pronta para hospedar aplicações em contêineres.
+
+
+
+Você irá utilizar 2 Branchs principais, uma branch de `infra` que ao realizar o merge nela, irá acionar o workflow (pipeline) de infra, e a branch `main` que será utilizada para realizar o ci/cd de nossa aplicação (segunda parte deste lab).
 
 Primeiro você irá precisar iniciar o AWS Academy.
 
 ## Acessando o AWS Academy
 
-001. Para iniciar o nosso lab, será necessário logar no **AWS Academy**, clicando no link: [clique aqui!](https://www.awsacademy.com/vforcesite/LMS_Login), logo após clique em **Student Login**!
+001. Para iniciar o lab, será necessário logar no **AWS Academy**, clicando no link: [clique aqui!](https://www.awsacademy.com/vforcesite/LMS_Login), logo após clique em **Student Login**!
 
 ![](./img/001.png)
 
@@ -32,11 +43,11 @@ Primeiro você irá precisar iniciar o AWS Academy.
 
 ![](./img/006.png)
 
-007. Clique em **Startup Lab**, para iniciar o laboratório, (AWS 🔴)
+007. Clique em **Startup Lab**, para iniciar o laboratório (AWS 🔴).
 
 ![](./img/007.png)
 
-008. Aguarde alguns minutos até que a aba AWS fique verde, (AWS 🟢).
+008. Aguarde alguns minutos até que a aba AWS fique verde (AWS 🟢).
 
 ### Acessando o console da AWS
 
@@ -56,7 +67,7 @@ Após ficar verde, clique em cima!
 
 ![](./img/011.png)
 
-012. Antes de criarmos o Bucket, precisaremos do ID da conta da AWS do nosso laboratório!
+012. Antes de criarmos o Bucket, precisaremos do ID da conta da AWS.
 
 Vá até o topo do console da AWS e clique na sua conta **voclabs/user2575295=gerson.carneiro...**, em **Account ID** copie o ID da sua conta. 
 
@@ -76,15 +87,15 @@ Aqui estamos criando o bucket para armazenar o statefile da nossa infraestrutura
 
 ![](./img/015.png)
 
-Agora que o **Bucket** foi criado, crie uma conta no github pois iremos utilizar alguns dos serviços do github neste laboratório, os principais serviços que utilizaremos são: repositório, github actions, codespaces e vscode web.
+Agora que o **Bucket** foi criado, crie uma conta no github pois será utilizado alguns dos serviços do github neste laboratório, como: repositório, github actions, codespaces e vscode web.
 
-### Criando a conta no github
+### Criando uma conta no github
 
 016. Acesse o site do github [https://github.com/](https://github.com/), e clique em **Sign in**.
 
 ![](./img/016.png)
 
-017. Se já tiver conta no github, insira o **Username or email address** (e-mail) e **Password** (Senha), depois clique em **Sign in**, caso não tenha conta, vá até **New to GitHub?**, clique em **Create an account** (Criar uma conta).
+017. Se já tiver conta no github, insira o **Username or email address** (e-mail) e **Password** (Senha) e pule para o item [Importando repositório da aula](#importando-repositório-da-aula), depois clique em **Sign in**, caso não tenha conta, vá até **New to GitHub?**, clique em **Create an account** (Criar uma conta).
 
 ![](./img/017.png)
 
@@ -123,10 +134,9 @@ Alguns links recomendados para iniciar a jornada no GitHub.
 ![](./img/022.png)
 
 > **Import vs fork** 
-> 
 > - **Import:** A importação geralmente se refere a trazer código de um repositório externo para um repositório existente ou para um novo repositório. Cria uma cópia completa e independente do repositório original em sua própria conta.
-> 
-> - **Fork:** Um fork cria uma cópia completa e independente do repositório original em sua própria conta. Essa cópia é um repositório separado, com seu próprio histórico de commits e branches. O fork é frequentemente usado para contribuir com projetos de código aberto. Você pode fazer alterações no seu fork e, em seguida, enviar um "pull request" para o repositório original, solicitando que suas alterações sejam incorporadas. O fork oferece isolamento, permitindo que você experimente e faça alterações sem afetar o repositório original.
+> - **Fork:** Um fork cria uma cópia completa e independente do repositório original em sua própria conta. Essa cópia é um repositório separado, com seu próprio histórico de commits e branches. O fork é frequentemente usado para contribuir com projetos de código aberto. Você pode fazer alterações no seu fork e, em seguida, enviar um "pull request" para o repositório original, solicitando que suas alterações sejam incorporadas. O fork oferece isolamento, permitindo que você experimente e faça alterações sem afetar o repositório original.  
+
 
 023. Em **Import your project to GitHub**, em **Your source repository details** insira o repositório https://github.com/gersontpc/containers-lab, em **Repository name***: insira o nome `container-technologies`, deixe o repositório público selecionando **Public** e por último clique em **Begin Import**.
 
@@ -191,7 +201,7 @@ Pronto, secret criada!
 
 ![](./img/043.png)
 
-Agora iremos repetir o mesmo processo para o restante das secrets!
+Agora repita o mesmo processo para o restante das secrets!
 
 025. Crie a secret AWS_SECRET_ACCESS_KEY, clique no botão **New repository secret**
 
@@ -235,7 +245,7 @@ Pronto! todas as secrets necessárias foram criadas!
 
 ![](./img/055.png)
 
-028. Agora será necessário adicionar qual será a nossa **Região** da AWS que iremos utilizar, mas ao invés de ser uma secret, será uma variável.
+028. Agora será necessário adicionar a região da AWS que será utilizada **Região**, ao invés de ser uma secret, será uma variável.
 
 Para adicionar a variável **AWS_REGION**, volte para o seu repositório e clique em **Settings**, **Secrets and variables** > **Actions** > Clique na aba **Variables** e por último clique em **New repository variable**, e adicione a variável `AWS_REGION`.
 
@@ -265,7 +275,7 @@ Pronto! Variável adicionada com sucesso!
 
 ### Utilizando o codespaces
 
-Agora iremos utilizar o GitHub CodeSpaces para começar a construir o nosso workflow de infra.
+Agora será utilizado o GitHub Codespaces para começar a construir o workflow para automatizar o provisionamento da infra.
 
 033. Na página inicial do GitHub (https://github.com/), no canto superior direito, clique em  [+], e em **New codespace**.
 
@@ -280,7 +290,7 @@ Agora iremos utilizar o GitHub CodeSpaces para começar a construir o nosso work
 
 ![](./img/029.png)
 
-037. Ao decorrer do nosso laboratório, iremos utilizar o terminal para digitar os comandos necessários para criarmos o nosso workflow.
+037. Ao decorrer do laboratório, será utilizado o terminal para digitar os comandos necessários para criar o workflow.
 
 ![](./img/030.png)
 
@@ -294,7 +304,7 @@ git checkout infra
 
 ![](./img/031.png)
 
-039. Execute o comando abaixo para criar os diretórios  `.github/workflows`  e arquivo `infra.yml`  para inserir o código do nosso workflow.
+039. Execute o comando abaixo para criar os diretórios  `.github/workflows`  e arquivo `infra.yml`  para inserir o código do workflow.
 
 ```shell
 mkdir -pv .github/workflows
@@ -303,7 +313,7 @@ touch .github/workflows/infra.yml
 
 ![](./img/032.png)
 
-040. Abra o arquivo `infra.yml` e cole o conteúdo abaixo para a criação do nosso workflow.
+040. Abra o arquivo `infra.yml` e cole o conteúdo abaixo para a criação do workflow.
 
 ```yaml
 name: 'Deploy Infra'
@@ -431,7 +441,7 @@ Ficando da seguinte forma:
 
 ![](./img/033.png)
 
-041. Agora iremos executar o comando para criar o nosso diretório de infra e os arquivos necessários para o terraform.
+041. Agora execute o comando para criar o diretório de infra e os arquivos necessários para o terraform.
 
 ```shell
 mkdir -p infra && touch infra/{main.tf,nlb.tf,outputs.tf,sg.tf,variables.tf,versions.tf,terraform.tfvars}
@@ -441,7 +451,7 @@ Arquivos criados conforme o comando executado!
 
 ![](./img/034.png)
 
-042. Agora iremos colocar os nossos "bloquinhos" do terraform de acordo com os arquivos criados.
+042. Agora será colocado os "bloquinhos" do terraform de acordo com os arquivos criados.
 
 043. Copie e cole o conteúdo abaixo no arquivo `main.tf`
 
@@ -642,7 +652,7 @@ subnets_id = [
 ]
 ```
 
-053. Como já preenchemos todos os nossos arquivos do terraform e suas variáveis, iremos criar o último arquivo, o `.gitignore`
+053. Como já preenchido todos os arquivos do terraform e suas variáveis, crie o último arquivo, o `.gitignore`.
 
 Execute o comando abaixo no terminal.
 
@@ -750,4 +760,4 @@ EC2 >  Network & Security > Cluster ECS:
 EC2 > Load Balancing > Load Balancers
 ![](./img/070.png)
 
-Show! agora que temos a nossa infraestrutura necessária provisionada iremos seguir para o workflow da nossa app!
+Show! agora que já tem a infraestrutura necessária provisionada de forma automatizada, está pronta para receber o deploy da aplicação que será executado na continuação do laboratório [Deploy App](../App/README.md).
