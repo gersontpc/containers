@@ -1,33 +1,29 @@
 
-Como já foi provisionada a infraestrutura pra suportar a nossa aplicação (Cluster ECS, NLB e SG), iremos criar o workflow para `Continuous Integration`, `Continuous Delivery` e `Continuous Deployment`
+Como já foi provisionada a infraestrutura pra suportar a aplicação (Cluster ECS, NLB e SG), agora será necessário criar o workflow para realizar o deploy da aplicação de forma automatizada`Continuous Integration`, `Continuous Delivery` e `Continuous Deployment`
 
-![](./img/cicd-app.png)
+![](./img/lab-cicd.png)
 
-Iremos utilizar os mesmos serviços do GitHub que utilizamos na pipeline de infra.
+Sera utilizado os mesmos serviços do GitHub que utilizamos na pipeline de infra.
 
-1. Vá até o GitHub do projeto importado: [https://github.com/**seu-usuario**/template-ci-cd](https://github.com/**<seu-usuario>**/template-ci-cd), abra o Codespaces em seu repositório para trabalhar na construção da pipeline de infra, abra na branch `main` do repositório.
+01. Na página inicial do GitHub (https://github.com/), no canto superior direito, clique em  [+], e em **New codespace**.
 
-![](./img/001.png)
+![](../Infra/img//027.png)
 
-2. No **terminal** do **Codespaces**, faça crie a branch `feature/init-app`.
+02. Preencha as informações, em **Repository** (selecione o repositório ), **Branch** (selecione a branch *main*), **Region** (selecione a região *US East*) e em **Machine type** (selecione *2-core*), por último clique em **Create codespace**
 
-[REFERENCIAR NO MARKDOWN O WORKFLOW]
 
-```shell
-git checkout -b feature/init-app
-```
+![](./img/01.png)
 
-![](./img/002.png)
 
-3. Após realizada a criação da branch, crie o arquivo `app.yml` para criarmos o workflow do GitHub Actions da nossa aplicação.
+03. Após criado Codespaces, vá até o terminal para criar o arquivo `app.yml` para iniciar a criação do workflow do GitHub Actions de deploy da aplicação.
 
 ```shell
 touch .github/workflows/app.yml
 ```
 
-![](./img/003.png)
+![](./img/02.png)
 
-4. Clique no arquivo `app.yml` e cole o conteúdo abaixo (workflow) dentro do arquivo.
+04. Clique no arquivo `app.yml` e cole o conteúdo abaixo (workflow) dentro do arquivo.
 
 ```yaml
 name: 'Deploy App'
@@ -40,17 +36,18 @@ on:
 env:
   DESTROY: false
   TF_VERSION: 1.10.5
-  IMAGE_NAME: ci-cd-app
-  TAG_APP: v1.0.0
+  IMAGE_NAME: ${{ github.event.repository.name }}
   ECS_SERVICE: app-service
   ECS_CLUSTER: app-prod-cluster
+  APP_VERSION: 1.0.0
   ENVIRONMENT: prod
 
 jobs:
   Build:
     name: 'Building app'
     runs-on: ubuntu-latest
-
+    outputs:
+      image_tag: ${{ steps.set_tag.outputs.image_tag }}
     defaults:
       run:
         shell: bash
@@ -62,6 +59,19 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set TAG_APP with SHA
+        run: |
+          echo "TAG_APP=v${{ env.APP_VERSION }}-$(echo $GITHUB_SHA | cut -c1-7)" >> "$GITHUB_ENV"
+
+      - name: Set TAG_APP Output
+        id: set_tag
+        run: echo "image_tag=$TAG_APP" >> $GITHUB_OUTPUT
+
+      - name: Show image TAG
+        run: |
+          echo "Image TAG" $TAG_APP
+          echo "Image TAG" ${{ steps.set_tag.outputs.image_tag }}
+
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
@@ -72,14 +82,6 @@ jobs:
 
       - name: Unit Test
         run: python -m unittest -v test
-
-      - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@v5
-        with:
-          fetch-depth: 0
-          projectBaseDir: ./app
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
       - name: Login to Docker Hub
         uses: docker/login-action@v3
@@ -108,9 +110,9 @@ jobs:
           docker image push ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.TAG_APP }}
 
   Deploy:
-
-    needs: Build
+    name: 'Deploy App'
     runs-on: ubuntu-latest
+    needs: Build
 
     defaults:
       run:
@@ -133,15 +135,17 @@ jobs:
 
       - name: Fill in the new image ID in the Amazon ECS task definition
         id: task-def
-        uses: aws-actions/amazon-ecs-render-task-definition@c804dfbdd57f713b6c079302a4c01db7017a36fc
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
           task-definition: ./app/deploy/ecs-task-definition.json
           container-name: ${{ env.IMAGE_NAME }}
-          image: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.TAG_APP }}
+          image: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ needs.Build.outputs.image_tag }}
+          taskRoleArn: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/LabRole
+          executionRoleArn: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/LabRole
 
       - name: Register Task Definition
         id: task-definition
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ${{ steps.task-def.outputs.task-definition }}
 
@@ -185,7 +189,7 @@ jobs:
         working-directory: ./app/deploy
 
       - name: Deploy App in Amazon ECS
-        uses: aws-actions/amazon-ecs-deploy-task-definition@df9643053eda01f169e64a0e60233aacca83799a
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ${{ steps.task-def.outputs.task-definition }}
           service: ${{ env.ECS_SERVICE }}
@@ -193,17 +197,17 @@ jobs:
           wait-for-service-stability: true
 ```
 
-![](./img/004.png)
+![](./img/04.png)
 
 > Para mais informações sobre cada step do nosso workflow, [clique aqui!](./github-actions.md)
 
-5. Crie os arquivos essenciais para o nosso projeto.
+05. Crie os arquivos essenciais para o nosso projeto.
 
 ```shell
-mkdir -p app && touch app/{.dockerignore,Dockerfile,app.py,test.py,requirements.txt,sonar-project.properties,docker-compose.yml}
+mkdir -p app && touch app/{.dockerignore,Dockerfile,app.py,test.py,requirements.txt,docker-compose.yml}
 ```
 
-![](./img/005.png)
+![](./img/05.png)
 
 Proposito da criação de cada arquivo:
 
@@ -212,7 +216,6 @@ Proposito da criação de cada arquivo:
 - `requirements.txt` - Arquivo para gerenciar dependências do Python, para mais informações [clique aqui!](https://docs.docker.com/build/concepts/context/#dockerignore-files)
 - `.dockerignore` - Arquivo que define quais arquivos e diretórios devem ser ignorados durante o **build** da imagem Docker. Ele funciona de maneira semelhante ao `.gitignore`, impedindo que arquivos desnecessários (como logs, dependências locais, arquivos de configuração sensíveis e diretórios do Git) sejam copiados para a imagem final. Isso ajuda a reduzir o tamanho da imagem e a melhorar a segurança e a eficiência do build. [clique aqui!](https://docs.docker.com/build/concepts/context/#dockerignore-files)
 - `Dockerfile` - Arquivo com as instruções para realizar o build da imagem da aplicação, para mais informações [clique aqui!](https://docs.docker.com/build/concepts/context/#dockerignore-files)
-- sonar-project.properties - Arquivo para definir configurações do projeto para que o **SonarQube Scanner** faça análise do código corretamente, guia de referência [clique aqui!](https://docs.sonarsource.com/sonarqube-server/10.8/analyzing-source-code/analysis-parameters/)
 - deploy.tf - Arquivo que iremos utilizar para realizar o deploy da aplicação na `AWS` onde irá conter os nossos resources do terraform.
 - `ecs-task-definition.json` - Definições de configurações para realizar o deploy da nossa aplicação dentro do cluster ECS.
 
@@ -220,7 +223,7 @@ Proposito da criação de cada arquivo:
 
 A Aplicação é escrita em `python` e utiliza o **Flask** como servidor web.
 
-6. No arquivo `app.py`, copie e cole o conteúdo abaixo:
+06. No arquivo `app.py`, copie e cole o conteúdo abaixo:
 
 ```python
 from flask import Flask
@@ -229,12 +232,12 @@ app = Flask(__name__)
 
 @app.route("/")
 def pagina_inicial():
-    return "Continuous Integration and Continuous Delivery"
+    return "Container Technologies"
 ```
 
-![](./img/006.png)
+![](./img/06.png)
 
-7. No arquivo `test.py` copie e cole o conteúdo abaixo.
+07. No arquivo `test.py` copie e cole o conteúdo abaixo.
 
 ```python
 from app import app
@@ -254,25 +257,25 @@ class Test(unittest.TestCase):
 
     def test_conteudo(self):
         # verifica o retorno do conteudo da pagina
-        self.assertEqual(self.result.data.decode('utf-8'), "Continuous Integration and Continuous Delivery")
+        self.assertEqual(self.result.data.decode('utf-8'), "Container Technologies")
 ```
 
-![](./img/007.png)
+![](./img/07.png)
 
-8. Para ter um controle melhor das versões de nossas dependências, iremos colar o conteúdo abaixo no arquivo `requirements.txt`.
+08. Para ter um controle melhor das versões de nossas dependências, iremos colar o conteúdo abaixo no arquivo `requirements.txt`.
 
 ```txt
 flask == 3.1.0
 gunicorn == 23.0.0
 ```
 
-![](./img/008.png)
+![](./img/08.png)
 
 #### Build
 
 Agora iremos utilizar o **Docker** para relizar a contrução da nossa imagem.
 
-9. No arquivo `.dockerignore` , cope e cole o conteúdo abaixo:
+09. No arquivo `.dockerignore` , cope e cole o conteúdo abaixo:
 
 ```.dockerignore
 Dockerfile
@@ -285,7 +288,7 @@ test.py
 ./deploy
 ```
 
-![](./img/009.png)
+![](./img/09.png)
 
 10. No arquivo `Dockerfile`, copie e cole as informações abaixo.
 
@@ -305,7 +308,7 @@ EXPOSE 8000
 CMD ["gunicorn", "--bind", "0.0.0.0:8000", "app:app"]
 ```
 
-![](./img/010.png)
+![](./img/10.png)
 
 11. No arquivo `docker-compose.yml` cole o conteúdo abaixo.
 
@@ -328,7 +331,7 @@ services:
       - APP_ENV=production
 ```
 
-![](./img/011.png)
+![](./img/11.png)
 
 #### Testando a aplicação localmente
 
@@ -345,17 +348,17 @@ cd app/ && docker compose up
 Ao digitar o comando, a sua aplicação irá realizar o build da imagem e subir localmente.
 Repare que no canto inferior direito, abre sobe uma mensagem `Your application running on port 8000 is available. See all forwarded ports`, clique no botão **Open in Browser**.
 
-![](./img/060.png)
+![](./img/12.png)
 
 14. Ao clicar no botão, você será redirecionado para uma url que seu aplicativo que está sendo executado local sera exposto.
 
-![](./img/061.png)
+![](./img/13.png)
 
 Pronto, tudo certo! Seu app está funcionando corretamente localmente! :)
 
 15. Pra parar a execução localmente, pressione `CTRL + C`.
 
-![](./img/062.png)
+![](./img/14.png)
 
 Agora que testou novamente,  iremos avançar para a configuração do próximo arquivo, mas antes execute o comando para voltar para o diretório `app`.
 
@@ -363,51 +366,19 @@ Agora que testou novamente,  iremos avançar para a configuração do próximo a
 cd ..
 ```
 
-#### Sonar 
-
-Iremos preencher com as informações do SonarQube Cloud, que iremos abordar mais a frente.
-
-16. No arquivo `sonar-project.properties`, copie e cole as informações abaixo:
-
-```sonar
-sonar.projectKey=<NOME DO PROJETO>
-sonar.organization=<ORGANIZAÇÃO>
-
-# This is the name and version displayed in the SonarCloud UI.
-sonar.projectName=<NOME DO PROJETO - Nome do repo> 
-#sonar.projectVersion=1.0
-
-# Path is relative to the sonar-project.properties file. Replace "\" by "/" on Windows.
-sonar.sources=app.py,Dockerfile
-
-# Encoding of the source code. Default is default system encoding
-#sonar.sourceEncoding=UTF-8
-
-sonar.language=py
-sonar.python.version=3.10
-
-sonar.tests=test.py
-sonar.python.coveragePlugin=cobertura
-sonar.python.coverage.reportPaths=coverage.xml
-
-sonar.qualitygate.wait=true
-```
-
-![](./img/012.png)
-
 #### Deployment
 
 Agora você chegou na fase de adicionar os arquivos do deploy da aplicação.
 
-17. 005. Crie os arquivos essenciais para o deploy da aplicação.
+16. 005. Crie os arquivos essenciais para o deploy da aplicação.
 
 ```shell
 mkdir -p app/deploy && touch app/deploy/{ecs-task-definition.json,deploy.tf,outputs.tf,terraform.tfvars,variables.tf,versions.tf}
 ```
 
-![](./img/025.png)
+![](./img/15.png)
 
-18. No arquivo `ecs-task-definition.json` copie e cole o conteúdo abaixo:
+17. No arquivo `ecs-task-definition.json` copie e cole o conteúdo abaixo:
 
 ```JSON
 {
@@ -454,8 +425,8 @@ mkdir -p app/deploy && touch app/deploy/{ecs-task-definition.json,deploy.tf,outp
         }
     ],
     "family": "ci-cd-app",
-    "taskRoleArn": "arn:aws:iam::526926919628:role/LabRole",
-    "executionRoleArn": "arn:aws:iam::526926919628:role/LabRole",
+    "taskRoleArn": "arn:aws:iam::893298020274:role/LabRole",
+    "executionRoleArn": "arn:aws:iam::893298020274:role/LabRole",
     "networkMode": "awsvpc",
     "volumes": [],
     "placementConstraints": [],
@@ -477,9 +448,9 @@ mkdir -p app/deploy && touch app/deploy/{ecs-task-definition.json,deploy.tf,outp
 }
 ```
 
-![](./img/026.png)
+![](./img/16.png)
 
-19. No arquivo do Terraform `deploy.tf` copie e cole o conteúdo abaixo:
+18. No arquivo do Terraform `deploy.tf` copie e cole o conteúdo abaixo:
 
 ```hcl
 data "aws_lb_target_group" "this" {
@@ -524,7 +495,7 @@ resource "aws_cloudwatch_log_group" "this" {
 }
 ```
 
-![](./img/027.png)
+![](./img/17.png)
 
 20. No arquivo `variables.tf` copie e cole o conteúdo abaixo:
 
@@ -553,7 +524,7 @@ variable "lb_name" {
 }
 ```
 
-![](./img/028.png)
+![](./img/18.png)
 
 21. No arquivo `versions.tf`, cope e cole o contaúdo abaixo:
 
@@ -569,9 +540,9 @@ terraform {
 }
 ```
 
-![](./img/029.png)
+![](./img/19.png)
 
-22. No arquivo `outputs.tf`, copie e cole o conteúdo abaixo:
+19. No arquivo `outputs.tf`, copie e cole o conteúdo abaixo:
 
 ```hcl
 output "nlb_dns_name" {
@@ -579,9 +550,9 @@ output "nlb_dns_name" {
 }
 ```
 
-![](./img/030.png)
+![](./img/020.png)
 
-23. No arquivo `terraform.tfvars`, copie e cole o conteúdo abaixo:
+20. No arquivo `terraform.tfvars`, copie e cole o conteúdo abaixo:
 
 ```
 subnets_id = [
@@ -591,7 +562,7 @@ subnets_id = [
 ]
 ```
 
-![](./img/031.png)
+![](./img/20.png)
 
 Agora que você já criou todos os arquivos necessários, iremos seguir para a criação da conta no `dockerhub`, para realizar o push da imagem do Docker da aplicação.
 
@@ -599,164 +570,123 @@ Agora que você já criou todos os arquivos necessários, iremos seguir para a c
 
 Docker Hub é um repositório online de imagens Docker, onde os desenvolvedores podem armazenar, compartilhar e distribuir contêineres. Ele serve como um registro público e privado para armazenar imagens de aplicativos, facilitando a automação do deploy e a colaboração entre equipes.
 
-24. Para criar a conta, acesse https://hub.docker.com/
-25. No canto superior esquerdo clique em **Sign up**.
+21. Para criar a conta, acesse https://hub.docker.com/, caso já tenha conta pule para a sessão [Secrets DockerHub](#secrets-dockerhub).
 
-![](./img/015.png)
+22. No canto superior esquerdo clique em **Sign up**.
 
-26. Na página de criação de conta, clique na aba **Personal** (Uso pessoal), em **E-mail** (Insira o seu e-mail), **Username** (Insira seu nome de usuário), **Password** (Insira uma senha) e por último clique em **Sign up**, para criar a sua conta.
+![](./img/21.png)
 
-![](./img/016.png)
+23. Na página de criação de conta, clique na aba **Personal** (Uso pessoal), em **E-mail** (Insira o seu e-mail), **Username** (Insira seu nome de usuário), **Password** (Insira uma senha) e por último clique em **Sign up**, para criar a sua conta.
 
-27. Após a criação da conta, será necessário acessar o seu e-mail para verificar a conta do DockerHub, clique em **Verify Email Addres**.
+![](./img/22.png)
 
-![](./img/019.png)
+24. Após a criação da conta, será necessário acessar o seu e-mail para verificar a conta do DockerHub, clique em **Verify Email Addres**.
 
-28. Após clicar em **Verify Email Addres**, será direcionado para a tela informando que seu e-mail foi verificado com sucesso, clique em **Sign In** para realizar o login.
+![](./img/23.png)
 
-![](./img/020.png)
+25. Após clicar em **Verify Email Addres**, será direcionado para a tela informando que seu e-mail foi verificado com sucesso, clique em **Sign In** para realizar o login.
 
-29. Você será redirecionado para a tela de login, em **Username or email address**, insira o seu nome de usuário ou e-mail, em seguida clique em **Continue**.
+![](./img/24.png)
 
-![](./img/017.png)
+26. Você será redirecionado para a tela de login, em **Username or email address**, insira o seu nome de usuário ou e-mail, em seguida clique em **Continue**.
 
-30. Insira a sua senha e clique novamente em **Continue**.
+![](./img/25.png)
 
-![](./img/018.png)
+27. Insira a sua senha e clique novamente em **Continue**.
+
+![](./img/26.png)
 
 Ao clicar em **Sign up** você será redirecionado o para o site do Docker, conta criada com sucesso!
 
-![](./img/021.png)
+![](./img/27.png)
 
 Agora que você já possui a conta, iremos configurar duas secrets no GitHub, no seu projeto.
 
 #### Secrets DockerHub
 
-31. Em seu repositório vá até **Settings** -> **Secrets and variables** -> **Actions** -> **New repository secret**.
+28. Em seu repositório vá até **Settings** -> **Secrets and variables** -> **Actions** -> **New repository secret**.
 
-![](./img/022.png)
+![](./img/28.png)
 
-32.  Em **New secret**, crie a secret `DOCKERHUB_USERNAME` e coloque o username do seu dockerhub.
+29.  Em **New secret**, crie a secret `DOCKERHUB_USERNAME` e coloque o username do seu dockerhub.
 
-![](./img/023.png)
+![](./img/29.png)
 
-33. Repita o processo e crie a secret `DOCKERHUB_TOKEN`, e coloque a sua senha no valor da **Secret**
+30. Repita o processo e crie a secret `DOCKERHUB_TOKEN`, e coloque a sua senha no valor da **Secret**
 
 Logo abaixo, a imagem com as duas secrets criadas.
 
-![](./img/024.png)
+![](./img/30.png)
 
-#### SonarQube Cloud
 
-O **SonarQube Cloud** é uma plataforma de análise de código na nuvem que ajuda a identificar vulnerabilidades, bugs e problemas de qualidade em aplicações. Ele permite a inspeção contínua do código-fonte, garantindo melhores práticas de desenvolvimento e maior segurança no software.
+Agora volte para o codespaces, para commitar os arquivos que foram criados.
 
-Será necessária a criação da conta para **analisar a qualidade do código-fonte** utilizando o **SonarQube Cloud**. Esse processo verifica **bugs, vulnerabilidades, code smells e cobertura de testes**, garantindo que o código atenda aos padrões de qualidade antes de ser implantado.
+21. Commite os arquivos executando o comando abaixo:
 
-Isso ajuda a melhorar a **segurança, manutenção e desempenho** do projeto, evitando problemas em produção.
-
-34. Acesse o site do [SonarQube Cloud](https://www.sonarsource.com/products/sonarcloud/) e clique em **Login**.
-
-![](./img/032.png)
-
-35. Em seguida clique para realizar o login com o **GITHUB**.
-
-![](./img/033.png)
-
-36. Ao realizar o login clique em **Authorize SonarQubeCloud** para permitir que se autentique no SonarQube com as suas credenciais do GitHub.
-
-![](./img/034.png)
-
-Aguarde o login...
-
-![](./img/035.png)
-
-37. Após o login clique em **Import an organization**.
-
-![](./img/036.png)
-
-38. Em *Install SonarQubeCloud*, selecione a opção **Only select repositories**, selecione o repositório criado em aula ***(sua-conta-do-github)*-lab-ci-cd**, por último clique em **Install**.
-
-![](./img/037.png)
-
-39. Em *Create an organization*, deixe os campos **Nome** e **Key**, padrão, que será o nome do projeto do github que você importou.
-
-Ainda na mesma página, em *Choose a plan*, selecione o plano clicano no botão **Select Free** (Para o plano gratuíto), e clique em **Create Organization** e aguarde a criação do projeto.
-
-![](./img/038.png)
-![](./img/039.png)
-
-40. Em *Analyze projects*, selecione o repositório do projeto **lab-ci-cd** e por último clique em **Set Up**.
-
-![](./img/040.png)
-
-41. Em *Set up project for Clean as You Code*, selecione a opção **Previous version** e clique em **Create project**.
-
-![](./img/041.png)
-
-42. No menu esquerdo, clique em **Information** e depois em **Check analysis method**.
-
-![](./img/042.png)
-
-43. Clique em **With GitHub Actions**.
-
-![](./img/043.png)
-
-44. Ao clicar em **With GitHub Actions**, em *1. Disable automatic analysis*, desabilite **Switch off Automatic Analysis**, em *2. Create a GitHub Secret*, terá as credenciais para criar uma nova secret no GitHub Actions, copie o valor do **token** que iremos utilizar posteriormente no valor da secret que irá criar no **GitHub**.
-
-![](./img/044.png)
-
-45. Volte para o repositório, e clique em **Settings** > **Secrets and variables** > **Actions** e clique em **New repository secret**.
-
-![](./img/045.png)
-
-46. Em **Name** coloque o nome da secret `SONAR_TOKEN` e no valor da **Secret** cole o valor do token que copiou no **SonarQube** e clique em **Add secret**.
-
-![](./img/046.png)
-
-47. Secret **SONAR_TOKEN** criada com sucesso!
-
-![](./img/047.png)
-
-48. Volte para o **SonarQube Cloud**, e clique em *Other (for Go, Python, PHP,...)*.
-
-![](./img/048.png)
-
-49. Na sessão *4. Create `sonar.project.properties` file*, copie as informações `sonar.projectKey=<nome-projeto>` e `sonar.organization=<username-github>`, e descomentar os parâmetros `sonar.projectName=<nome-projeto>`, atualize o arquivo **sonar-project.properties** que criou anteriormente.
-
-![](./img/049.png)
-
-50.  O arquivo  **sonar-project.properties**, deve ficar conforme abaixo.
-
-> Altere o `sonar.projectKey`e `sonar.organization`. 
-
-```properties
-sonar.projectKey=thiagoqualy2k25_lab-ci-cd
-sonar.organization=thiagoqualy2k25
-
-# This is the name and version displayed in the SonarCloud UI.
-sonar.projectName=lab-ci-cd
-#sonar.projectVersion=1.0
-
-# Path is relative to the sonar-project.properties file. Replace "\" by "/" on Windows.
-sonar.sources=app.py,Dockerfile
-
-# Encoding of the source code. Default is default system encoding
-#sonar.sourceEncoding=UTF-8
-
-sonar.language=py
-sonar.python.version=3.10
-
-sonar.tests=test.py
-sonar.python.coveragePlugin=cobertura
-sonar.python.coverage.reportPaths=coverage.xml
-
-sonar.qualitygate.wait=true
+```shell
+git add -A
+git commit -m "feat: Deploy application"
 ```
 
-![](./img/050.png)
+![](./img/31.png)
 
-51. Salve o arquivo 
+22. Realize o push das alterações.
 
+```shell
+git push
+```
 
-![](./img/051.png)
+![](./img/32.png)
 
+23. Assim que realizar o push, volte para o repositório e clique na aba `Actions`, logo em seguida clique na action **feat: Deploy application** para acompanhar o deploy.
+
+![](./img/33.png)
+
+24. Repare que haverá dois workflows, o **Building app** (realiza o build da imagem) e **Deploy App** (Realiza o deploy da aplicação).
+
+![](./img/34.png)
+
+25. No workflow **Deploy App**, vá até o step **Deploy App in Amazon ECS** para acompanhar o deploy.
+
+![](./img/35.png)
+
+26. Volte no console da AWS no Serviço **Amazon Elastic Container Service - ECS** > **Clusters** > Cluster: **app-prod-cluster** > **Services** clique no serviço **app-service**, vá até a aba **Deployments**, e repare que em **Deployment status** há um deploy em andamento **In Progress**.
+
+![](./img/36.png)
+
+Aguarde até que o deploy seja concluído.
+
+27. Volte na action de Deploy e repare que o deploy foi concluído.
+
+![](./img/37.png)
+
+27. Volte no console da AWS no Serviço **Amazon Elastic Container Service - ECS** > **Clusters** > Cluster: **app-prod-cluster** > **Services** clique no serviço **app-service**, vá até a aba **Tasks**, há 3 tasks (containers) em execução, na aba das tasks em **Health status** o status deve ser **Healthy**.
+
+![](./img/38.png)
+
+28. Para validar a aplicação volte no Workflow **Deploy Infra** e vá até o step **Terraform Creating and Update**, clique no DNS do loadbalancer para acessar a aplicação.
+
+![](./img/39.png)
+
+29. Pronto! Foi realizado o deploy da aplicação com sucesso!
+
+![](./img/40.png)
+
+Neste laboratório foi realizado o build do artefato da aplicação e em seguida o deploy da service no cluster ECS que foi provisionado no laboratório de infra.
+
+Ao acessar o dns do NLB ele irá direcionar a requisição para o listener `:80`, que será redirecionado para o target group na porta `8000` do container que é uma (task) configurada na service do ECS.
+
+Diagrama abaixo da arquitetura:
+
+![](./img/diagrama.png)
+
+### Conclusão do Laboratório
+Parabéns! 🎉 Você acaba de concluir o laboratório de provisionamento de infraestrutura e deploy automatizado de uma aplicação no Amazon ECS.
+
+Neste laboratório, você aprendeu a:  
+✅ Provisionar a infraestrutura necessária utilizando Terraform.  
+✅ Configurar workflows no GitHub Actions para automação de CI/CD.  
+✅ Realizar o build, teste e publicação de imagens Docker no Docker Hub.  
+✅ Automatizar o deploy de uma aplicação no Amazon ECS com alta disponibilidade.
+
+Agora você compreende como é possível automatizar todo o ciclo de vida de uma aplicação, desde a infraestrutura até o deploy, utilizando ferramentas modernas de DevOps. 🚀

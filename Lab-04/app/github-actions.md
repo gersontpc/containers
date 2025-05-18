@@ -1,19 +1,22 @@
 ### GitHub Actions Build/Deploy App
 
-Abaixo uma explicação de cada **step** desse **GitHub Actions** para build da app com **Terraform**:
+Este **GitHub Actions workflow** realiza o **build e deploy** de uma aplicação com **Docker**, **Python**, **Terraform**, e **Amazon ECS**. Ele foi configurado para ser disparado automaticamente em um **push** para a branch `main`.
 
-1. Configuração Geral
+---
 
-- **Nome do workflow:** `Deploy App`.
-- **Disparo do workflow:** Sempre que houver um **push** na branch `main`.
-- Define variáveis de ambiente (global):
-	- `DESTROY`: Define se o Terraform deve destruir os recursos (`false` por padrão).
-	- `TF_VERSION`: Versão do Terraform utilizada.
-	- `IMAGE_NAME`: Nome da imagem Docker.
-	- `TAG_APP`: Tag da imagem (versão `v1.0.0`).
-	- `ECS_SERVICE`: Nome do serviço ECS.
-	- `ECS_CLUSTER`: Nome do cluster ECS.
-	- `ENVIRONMENT`: Ambiente (`prod`).
+#### 1. **Configuração Geral**
+
+* **Nome do workflow:** `Deploy App`.
+* **Disparo do workflow:** Quando houver um **push** na branch `main`.
+* **Variáveis de ambiente global:**
+
+  * `DESTROY`: Define se o Terraform deve destruir os recursos (`false` por padrão).
+  * `TF_VERSION`: Versão do Terraform utilizada.
+  * `IMAGE_NAME`: Nome da imagem Docker.
+  * `ECS_SERVICE`: Nome do serviço ECS.
+  * `ECS_CLUSTER`: Nome do cluster ECS.
+  * `APP_VERSION`: Versão da aplicação.
+  * `ENVIRONMENT`: Ambiente de deploy (`prod`).
 
 ```yaml
 name: 'Deploy App'
@@ -27,19 +30,21 @@ env:
   DESTROY: false
   TF_VERSION: 1.10.5
   IMAGE_NAME: ci-cd-app
-  TAG_APP: v1.0.0
   ECS_SERVICE: app-service
   ECS_CLUSTER: app-prod-cluster
   ENVIRONMENT: prod
 ```
 
 ---
-#### Build app
 
-2. Definição do Job `Building app`
+### 2. **Job: Build App**
 
-- O job **`Build`** roda na máquina **`ubuntu-latest`**.
-- Define que os comandos executados no shell utilizarão o `bash` dentro do diretório **`app`**.
+O job **`Build`** é responsável por realizar o build da aplicação, criar a imagem Docker e realizar testes, além de empurrar a imagem para o Docker Hub.
+
+#### 2.1 **Definição do Job `Build`**
+
+* O job **`Build`** roda na máquina **`ubuntu-latest`**.
+* Define que os comandos executados no shell utilizarão o `bash` dentro do diretório **`app`**.
 
 ```yaml
 jobs:
@@ -53,270 +58,239 @@ jobs:
         working-directory: app
 ```
 
----
+#### 2.2 **Checkout do Código**
 
-3. Checkout do Código
-
--   Faz o **checkout** do código-fonte no runner.
--   O `fetch-depth: 0` garante que **todo o histórico do Git** seja baixado.
+* Realiza o **checkout** do código-fonte do repositório no runner.
+* O `fetch-depth: 0` garante que **todo o histórico Git** seja baixado.
 
 ```yaml
   - name: Download do Repositório
-	uses: actions/checkout@v4
-	with:
-	  fetch-depth: 0
+    uses: actions/checkout@v4
+    with:
+      fetch-depth: 0
 ```
 
----
+#### 2.3 **Configuração do Python**
 
-4. Configuração do Python
-
--   Configura o ambiente Python **versão 3.10**
+* Configura o ambiente Python **versão 3.10** para rodar os testes.
 
 ```yaml
   - name: Setup Python
-	uses: actions/setup-python@v4
-	with:
-	  python-version: '3.10'
+    uses: actions/setup-python@v4
+    with:
+      python-version: '3.10'
 ```
 
----
+#### 2.4 **Instalação das Dependências**
 
-5. Instalação das Dependências
+* Instala o **Flask** para rodar a aplicação.
 
--   Instala a **dependência Flask** para a aplicação.
 ```yaml
-- name: Install Requirements
-  run:  pip install flask -r requirements.txt
+  - name: Install Requirements
+    run: pip install flask
 ```
 
----
+#### 2.5 **Executando Testes Unitários**
 
-6. Executando Testes Unitários**
-
-- Roda os **testes unitários** com o **`unittest`**.
+* Roda os **testes unitários** com o **`unittest`**.
 
 ```yaml
   - name: Unit Test
-	run: python -m unittest -v test
+    run: python -m unittest -v test
 ```
 
----
+#### 2.6 **Login no Docker Hub**
 
-7. Análise Estática com SonarQube
-
-- **Executa uma análise de qualidade de código** no **SonarQube**.
-- Usa o **token secreto `SONAR_TOKEN`** armazenado no GitHub Secrets.
-
-```yaml
-  - name: SonarQube Scan
-	uses: SonarSource/sonarqube-scan-action@v5
-	with:
-	  fetch-depth: 0
-	  projectBaseDir: ./app
-	env:
-	  SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-```
----
-
-8. Login no Docker Hub
-
-- Faz login no **Docker Hub** usando credenciais secretas.
+* Faz login no **Docker Hub** utilizando credenciais secretas armazenadas.
 
 ```yaml
   - name: Login to Docker Hub
-	uses: docker/login-action@v3
-	with:
-	  username: ${{ secrets.DOCKERHUB_USERNAME }}
-	  password: ${{ secrets.DOCKERHUB_TOKEN }}
+    uses: docker/login-action@v3
+    with:
+      username: ${{ secrets.DOCKERHUB_USERNAME }}
+      password: ${{ secrets.DOCKERHUB_TOKEN }}
 ```
 
----
+#### 2.7 **Construção da Imagem Docker**
 
-9. Construindo a Imagem Docker
-
--   **Habilita o BuildKit (`DOCKER_BUILDKIT=1`)** para uma compilação mais eficiente.
--   Constrói a **imagem Docker** com a tag definida (`IMAGE_NAME:TAG_APP`).
+* Habilita o **DOCKER\_BUILDKIT** para uma construção mais eficiente.
+* Cria a **imagem Docker** com a tag definida (`IMAGE_NAME:TAG_APP`).
 
 ```yaml
   - name: Build an image from Dockerfile
-	env:
-	  DOCKER_BUILDKIT: 1
-	run: |
-	  docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.TAG_APP }} .
+    env:
+      DOCKER_BUILDKIT: 1
+    run: |
+      docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.TAG_APP }} .
 ```
 
----
+#### 2.8 **Escaneamento de Vulnerabilidades com Trivy**
 
-10. Scanner de Vulnerabilidades com Trivy
-
--   **Escaneia a imagem Docker** em busca de vulnerabilidades.
--   Se houver vulnerabilidades **CRÍTICAS**, o workflow **falha (`exit-code: 1`)**.
+* **Escaneia a imagem Docker** em busca de vulnerabilidades.
+* Se encontrar vulnerabilidades **críticas**, o workflow **falha**.
 
 ```yaml
   - name: Run Trivy vulnerability scanner
-	uses: aquasecurity/trivy-action@master
-	with:
-	  image-ref: '${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.TAG_APP }}'
-	  format: 'table'
-	  exit-code: '1'
-	  ignore-unfixed: true
-	  vuln-type: 'os,library'
-	  severity: 'CRITICAL'
+    uses: aquasecurity/trivy-action@master
+    with:
+      image-ref: '${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.TAG_APP }}'
+      format: 'table'
+      exit-code: '1'
+      ignore-unfixed: true
+      vuln-type: 'os,library'
+      severity: 'CRITICAL'
 ```
----
 
-11. Publicando a Imagem no Docker Hub
+#### 2.9 **Push da Imagem no Docker Hub**
 
--   **Faz o push da imagem** para o **Docker Hub**.
+* Faz o **push** da imagem para o **Docker Hub**.
 
 ```yaml
   - name: Push image
-	run: |
-	  docker image push ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.TAG_APP }}
+    run: |
+      docker image push ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.TAG_APP }}
 ```
+
 ---
 
-#### Build Deploy
+### 3. **Job: Deploy App**
 
-- **Executado após o `Build` (`needs: Build`)**.
-- **Responsável por:** Configurar credenciais AWS, atualizar task definition, criar infra com Terraform e fazer deploy no ECS.
+O job **`Deploy`** é responsável por realizar o deploy da aplicação no **Amazon ECS**. Ele só é executado após o job **`Build`** (`needs: Build`).
 
-12. Checkout do Código
+#### 3.1 **Definição do Job `Deploy`**
 
--   Faz o **checkout** do código-fonte no runner.
--   O `fetch-depth: 0` garante que **todo o histórico do Git** seja baixado.
+* O job **`Deploy`** roda na máquina **`ubuntu-latest`**.
+* Usa a saída do job **`Build`** para passar a variável `image_tag`.
+
+```yaml
+  Deploy:
+    name: 'Deploy App'
+    runs-on: ubuntu-latest
+    needs: Build
+```
+
+#### 3.2 **Checkout do Código**
+
+* Realiza o **checkout** do código-fonte do repositório no runner.
 
 ```yaml
   - name: Download do Repositório
-	uses: actions/checkout@v4
-	with:
-	  fetch-depth: 0
+    uses: actions/checkout@v4
+    with:
+      fetch-depth: 0
 ```
 
-13. Configurar credenciais AWS
+#### 3.3 **Configuração de Credenciais AWS**
 
-- Configura credenciais para usar AWS CLI.
+* Configura as credenciais para que o AWS CLI possa ser utilizado.
 
 ```yaml
-- name: Configure AWS credentials
-  uses: aws-actions/configure-aws-credentials@v4
-  with:
-    aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-    aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-    aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
-    aws-region: ${{ vars.AWS_REGION }}
+  - name: Configure AWS credentials
+    uses: aws-actions/configure-aws-credentials@v4
+    with:
+      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+      aws-region: ${{ vars.AWS_REGION }}
 ```
 
-14. Atualizar Task Definition
+#### 3.4 **Atualizar a Task Definition**
 
-- - Substitui a imagem no arquivo **`ecs-task-definition.json`**.
+* Preenche a definição da task do ECS com a nova imagem gerada no `Build`.
 
 ```yaml
-- name: Register Task Definition
-  id: task-definition
-  uses: aws-actions/amazon-ecs-deploy-task-definition@v1
-  with:
-    task-definition: ${{ steps.task-def.outputs.task-definition }}
+  - name: Fill in the new image ID in the Amazon ECS task definition
+    id: task-def
+    uses: aws-actions/amazon-ecs-render-task-definition@v1
+    with:
+      task-definition: ./app/deploy/ecs-task-definition.json
+      container-name: ${{ env.IMAGE_NAME }}
+      image: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ needs.Build.outputs.image_tag }}
 ```
 
-15. Registrar Task Definition
+#### 3.5 **Registrar a Task Definition**
 
-- Registra a nova **task definition** no ECS.
+* Registra a nova **task definition** no Amazon ECS.
 
 ```yaml
-- name: Register Task Definition
-  id: task-definition
-  uses: aws-actions/amazon-ecs-deploy-task-definition@v1
-  with:
-    task-definition: ${{ steps.task-def.outputs.task-definition }}
+  - name: Register Task Definition
+    id: task-definition
+    uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+    with:
+      task-definition: ${{ steps.task-def.outputs.task-definition }}
 ```
 
-16. Configurar Terraform
+#### 3.6 **Configuração do Terraform**
 
-- Instala o **Terraform** na versão especificada.
+* Inicializa e aplica as configurações do Terraform para o backend S3.
 
 ```yaml
-- name: Terraform | Setup
-  uses: hashicorp/setup-terraform@v3
-  with:
-    terraform_version: ${{ env.TF_VERSION }}
+  - name: Terraform | Setup
+    uses: hashicorp/setup-terraform@v3
+    with:
+      terraform_version: ${{ env.TF_VERSION }}
 ```
 
-17. Configurar Backend S3
+#### 3.7 **Terraform | Backend S3**
 
-- Define o **Backend do Terraform no S3**.
+* Configura o **backend do Terraform** para armazenar o estado no S3.
 
 ```yaml
-- name: Terraform | Set up statefile S3 Bucket for Backend
-  run: |
-      echo "terraform {
-        backend \"s3\" {
-          bucket   = \"${{ secrets.AWS_ACCOUNT_ID }}-tfstate\"
-          key      = \"app-${{ env.ENVIRONMENT }}.tfstate\"
-          region   = \"${{ vars.AWS_REGION }}\"
-        }
-      }" >> provider.tf
-      cat provider.tf
-  working-directory: ./app/deploy
+  - name: Terraform | Set up statefile S3 Bucket for Backend
+    run: |
+        echo "terraform {
+          backend \"s3\" {
+            bucket   = \"${{ secrets.AWS_ACCOUNT_ID }}-tfstate\"
+            key      = \"app-${{ env.ENVIRONMENT }}.tfstate\"
+            region   = \"${{ vars.AWS_REGION }}\"
+          }
+        }" >> provider.tf
+        cat provider.tf
+    working-directory: ./app/deploy
 ```
 
-18. Inicializar Terraform
+#### 3.8 **Inicialização do Terraform**
 
-- Inicializa o Terraform e baixa os plugins.
+* **Inicializa o Terraform** e baixa os plugins necessários.
 
 ```yaml
-- name: Terraform | Initialize backend
-  run: terraform init
-  working-directory: ./app/deploy
+  - name: Terraform | Initialize backend
+    run: terraform init
+    working-directory: ./app/deploy
 ```
 
-19. Validar código Terraform
+#### 3.9 **Validar e Aplicar o Código Terraform**
 
-- Verifica erros de sintaxe no código Terraform.
+* **Valida** a sintaxe do código Terraform e **aplica** as mudanças para criar ou destruir os recursos no ECS.
 
 ```yaml
-- name: Terraform | Check Syntax IaC Code
-  run: terraform validate
-  working-directory: ./app/deploy
+  - name: Terraform | Check Syntax IaC Code
+    run: terraform validate
+    working-directory: ./app/deploy
 ```
 
-20. Criar plano de execução
+#### 3.10 **Deploy no Amazon ECS**
 
-- Gera o plano de mudanças.
+* Realiza o **deploy** da nova versão da aplicação no **Amazon ECS**.
 
 ```yaml
-- name: Terraform Destroy
-  if: env.DESTROY == 'true'
-  run: terraform destroy -auto-approve -input=false
-  working-directory: ./app/deploy
+  - name: Deploy App in Amazon ECS
+    uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+    with:
+      task-definition: ${{ steps.task-def.outputs.task-definition }}
+      service: ${{ env.ECS_SERVICE }}
+      cluster: ${{ env.ECS_CLUSTER }}
+      wait-for-service-stability: true
 ```
 
-21. Destruir Infraestrutura (se necessário)
+---
 
-- Executa `terraform destroy` se `DESTROY=true`.
+## 📌 **Resumo**
 
-```yaml
-- name: Terraform Creating and Update
-  if: env.DESTROY != 'true'
-  run: terraform apply -auto-approve -input=false
-  working-directory: ./app/deploy
-```
-
-22. Aplica as configurações no **AWS ECS**
-
-- **Faz o deploy** no **Amazon ECS**.
-
-```yaml
-- name: Deploy App in Amazon ECS
-  uses: aws-actions/amazon-ecs-deploy-task-definition@df9643053eda01f169e64a0e60233aacca83799a
-  with:
-    task-definition: ${{ steps.task-def.outputs.task-definition }}
-    service: ${{ env.ECS_SERVICE }}
-    cluster: ${{ env.ECS_CLUSTER }}
-    wait-for-service-stability: true
-```
-
-## **Conclusão**
-
-Esse workflow faz **build, análise, testes, push de imagem e deploy automático no ECS** utilizando **GitHub Actions, Docker e Terraform**. 🚀
+Este workflow realiza as seguintes etapas:  
+✅ **Build da aplicação** com **Docker**.  
+✅ **Criação e push** da imagem no **Docker Hub**.  
+✅ **Escaneamento de vulnerabilidades** com **Trivy**.  
+✅ **Deploy automático** da aplicação no **Amazon ECS**.  
+✅ Configuração e uso do **Terraform** para provisionamento de infraestrutura.  
+🚀 **Deploy automático** da aplicação em produção.

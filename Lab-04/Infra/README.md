@@ -282,6 +282,7 @@ Agora será utilizado o GitHub Codespaces para começar a construir o workflow p
 ![](./img/027.png)
 
 034. Preencha as informações, em **Repository** (selecione o repositório USERNAME/container-technologies), **Branch** (selecione a branch *main*), **Region** (selecione a região *US East*) e em **Machine type** (selecione *2-core*), por último clique em **Create codespace**
+
 035. Preencha as informações, em **Repository** (selecione o repositório ), **Branch** (selecione a branch *infra*), **Region** (selecione a região *US East*) e em **Machine type** (selecione *2-core*), por último clique em **Create codespace**
 
 ![](./img/028.png)
@@ -316,125 +317,165 @@ touch .github/workflows/infra.yml
 040. Abra o arquivo `infra.yml` e cole o conteúdo abaixo para a criação do workflow.
 
 ```yaml
-name: 'Deploy Infra'
+name: 'Deploy App'
 
 on:
   push:
     branches:
-      - infra
+      - main
+
 env:
-  TF_VERSION: 1.10.5
-  TF_LINT_VERSION: v0.52.0
   DESTROY: false
+  TF_VERSION: 1.10.5
+  IMAGE_NAME: ci-cd-app
+  TAG_APP: v1.0.0
+  ECS_SERVICE: app-service
+  ECS_CLUSTER: app-prod-cluster
   ENVIRONMENT: prod
+
 jobs:
-  terraform:
-    name: 'Deploy Infra'
+  Build:
+    name: 'Building app'
     runs-on: ubuntu-latest
 
     defaults:
       run:
         shell: bash
-        working-directory: infra
+        working-directory: app
 
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+      - name: Download do Repositório
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    - name: AWS | Configure credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
-        aws-region: ${{ vars.AWS_REGION }}
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
 
-    - name: Terraform-docs | Generate documentation
-      uses: terraform-docs/gh-actions@v1.3.0
-      with:
-        working-dir: ./infra
-        output-file: README.md
-        output-method: inject
-        git-push: "true"
+      - name: Install Requirements
+        run:  pip install flask
 
-    - name: Terraform | Check required version
-      run: |
-        if [ -f versions.tf ];
-          then
-            echo "TF_VERSION=$(grep required_version versions.tf | sed 's/"//g' | awk '{ print $3 }')" >> $GITHUB_ENV
-          else
-            echo "Not set required_version in versions.tf, using default version in variable TF_VERSION in file .github/workflows/infra.yml"
-            echo "TF_VERSION="${{ env.TF_VERSION }}"" >> $GITHUB_ENV
-        fi
+      - name: Unit Test
+        run: python -m unittest -v test
 
-    - name: Terraform | Setup
-      uses: hashicorp/setup-terraform@v3
-      with:
-        terraform_version: ${{ env.TF_VERSION }}
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-    - name: Terraform | Show version
-      run: terraform --version
+      - name: Build an image from Dockerfile
+        env:
+          DOCKER_BUILDKIT: 1
+        run: |
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.TAG_APP }} .
 
-    - name: Terraform | Set up statefile S3 Bucket for Backend
-      run: |
-          echo "terraform {
-            backend \"s3\" {
-              bucket   = \"${{ secrets.AWS_ACCOUNT_ID }}-tfstate\"
-              key      = \"infra-${{ env.ENVIRONMENT }}.tfstate\"
-              region   = \"${{ vars.AWS_REGION }}\"
-            }
-          }" >> provider.tf
-          cat provider.tf
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.TAG_APP }}'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL'
 
-    - name: Terraform | Initialize backend
-      run: terraform init
+      - name: Push image
+        run: |
+          docker image push ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.TAG_APP }}
 
-    - name: Terraform | Format code
-      run: terraform fmt
+  Deploy:
 
-    - name: Terraform | Check Syntax IaC Code
-      run: terraform validate
+    needs: Build
+    runs-on: ubuntu-latest
 
-    - name: TFlint | Cache plugin directory
-      uses: actions/cache@v4
-      with:
-        path: ~/.tflint.d/plugins
-        key: ${{ matrix.os }}-tflint-${{ hashFiles('.tflint.hcl') }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: app
 
-    - name: TFlint | Setup TFLint
-      uses: terraform-linters/setup-tflint@v4
-      with:
-        tflint_version: ${{ env.TF_LINT_VERSION }}
+    steps:
+      - name: Download do Repositório
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    - name: TFlint | Show version
-      run: tflint --version
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ vars.AWS_REGION }}
 
-    - name: TFlint | Init TFLint
-      run: tflint --init
-      env:
-        GITHUB_TOKEN: ${{ github.token }}
+      - name: Fill in the new image ID in the Amazon ECS task definition
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: ./app/deploy/ecs-task-definition.json
+          container-name: ${{ env.IMAGE_NAME }}
+          image: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.TAG_APP }}
+          taskRoleArn: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/LabRole
+          executionRoleArn: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/LabRole
 
-    - name: TFlint | Run TFLint
-      run: tflint -f compact
+      - name: View inside file ecs-task-definition.json
+        run: |
+          cat ./deploy/ecs-task-definition.json
 
-    - name: TFSec | Security Checks
-      uses: aquasecurity/tfsec-action@v1.0.0
-      with:
-        soft_fail: true
+      - name: Register Task Definition
+        id: task-definition
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
 
-    - name: Terraform | Plan
-      run: terraform plan -out tfplan.binary
+      - name: Terraform | Setup
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
 
-    - name: Terraform | Show to json file
-      run: terraform show -json tfplan.binary > plan.json
+      - name: Terraform | Set up statefile S3 Bucket for Backend
+        run: |
+            echo "terraform {
+              backend \"s3\" {
+                bucket   = \"${{ secrets.AWS_ACCOUNT_ID }}-tfstate\"
+                key      = \"app-${{ env.ENVIRONMENT }}.tfstate\"
+                region   = \"${{ vars.AWS_REGION }}\"
+              }
+            }" >> provider.tf
+            cat provider.tf
+        working-directory: ./app/deploy
 
-    - name: Terraform Destroy
-      if: env.DESTROY == 'true'
-      run: terraform destroy -auto-approve -input=false
+      - name: Terraform | Initialize backend
+        run: terraform init
+        working-directory: ./app/deploy
 
-    - name: Terraform Creating and Update
-      if: env.DESTROY != 'true'
-      run: terraform apply -auto-approve -input=false
+      - name: Terraform | Check Syntax IaC Code
+        run: terraform validate
+        working-directory: ./app/deploy
+
+      - name: Terraform | Plan
+        run: terraform plan -out tfplan.binary
+        working-directory: ./app/deploy
+
+      - name: Terraform Destroy
+        if: env.DESTROY == 'true'
+        run: terraform destroy -auto-approve -input=false
+        working-directory: ./app/deploy
+
+      - name: Terraform Creating and Update
+        if: env.DESTROY != 'true'
+        run: terraform apply -auto-approve -input=false
+        working-directory: ./app/deploy
+
+      - name: Deploy App in Amazon ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@df9643053eda01f169e64a0e60233aacca83799a
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
 ```
 
 Ficando da seguinte forma:
@@ -760,4 +801,23 @@ EC2 >  Network & Security > Cluster ECS:
 EC2 > Load Balancing > Load Balancers
 ![](./img/070.png)
 
-Show! agora que já tem a infraestrutura necessária provisionada de forma automatizada, está pronta para receber o deploy da aplicação que será executado na continuação do laboratório [Deploy App](../App/README.md).
+061. Por último faça o Pull Request da branch `infra` para a `main` e realizer o merge.
+
+No repositório clique na aba **Pull requests** e em seguida **New pull request**
+
+![](./img/071.png)
+
+062. Selecione a branch de infra para realizar o merge na main, ficando da sequinte forma [from:main] <- [compare:infra], depois clique em **Create pull request**.
+
+![](./img/072.png)
+
+063. Clique **Create pull request**
+
+![](./img/073.png)
+
+064. Clique em **Merge pull request** para realizar o merge!
+
+![](./img/074.png)
+
+Show! Laboratório concluído! 🎉
+Agora que você já tem a infraestrutura necessária provisionada de forma automatizada, ela está pronta para receber o deploy da aplicação, que será executado na continuação do laboratório:[Deploy App](../App/README.md).

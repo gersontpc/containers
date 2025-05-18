@@ -289,7 +289,7 @@ Se `DESTROY` for `false`, o Terraform **aplica as mudanças** automaticamente.
 
 ---
 
-## **📌 Resumo**
+## 📌 Resumo
 
 Este **workflow** realiza os seguintes passos:
 ✅ Faz checkout do código.  
