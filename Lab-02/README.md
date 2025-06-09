@@ -136,7 +136,11 @@ jobs:
 ```
 10. Na raiz do projeto crie o diretório `app`:
 
-Neste diretório coloque o arquivo app.gz
+Dentro do diretório `app` baixe o arquivo zipado app.gz
+
+```bash
+curl -O https://github.com/gersontpc/containers/raw/refs/heads/main/Lab-02/app/app.gz
+```
 
 11. Crie o arquivo `Dockerfile` e coloque o conteúdo:
 
