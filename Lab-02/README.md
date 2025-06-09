@@ -138,7 +138,7 @@ jobs:
 
 Dentro do diretório `app` baixe o arquivo zipado app.gz
 
-```bash
+```shell
 curl -O https://github.com/gersontpc/containers/raw/refs/heads/main/Lab-02/app/app.gz
 ```
 
@@ -155,13 +155,7 @@ CMD ["nginx", "-g", "daemon off;"]
 
 ```shell
 git add .
-```
-
-```shell
 git commmit -m "Criação do workflow"
-```
-
-```shell
 git push origin
 ```
 13. Acompanhe a execução do workflow, no repositório clique em `Actions` > `build-image` e acompanhe o workflow.
