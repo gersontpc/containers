@@ -40,40 +40,73 @@ mkdir -p .github/workflows
 
 ```shell
 
-touch .github/workflows/01-build-image.yaml
+touch .github/workflows/app.yaml
 ```
 8. A estrutura deve ficar da seguinte forma:
 ```shell
 .
 └── .github
     └── workflows
-        └── 01-build-image.yaml
+        └── app.yaml
 ```
-9. No arquivo `01-build-image.yaml` iremos configurar os nossos steps do nosso workflow
+9. No arquivo `app.yaml` iremos configurar os nossos steps do nosso workflow
 
 Insira o conteúdo no arquivo:
 
 ```github-actions
-name: build-image
+name: 'Deploy App'
 
 on:
   push:
     branches:
-      - 'main'
-      - 'develop'
+      - main
+
+env:
+  DESTROY: false
+  IMAGE_NAME: ${{ github.event.repository.name }}
+  APP_VERSION: 1.0.0
+  ENVIRONMENT: prod
 
 jobs:
-  build-image:
+  Build:
+    name: 'Building app'
     runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.set_tag.outputs.image_tag }}
     defaults:
       run:
+        shell: bash
         working-directory: app
-    env:
-      TAG: v1.0.0
 
     steps:
-      - name: Checkout
+      - name: Download do Repositório
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set TAG_APP with SHA
+        run: |
+          echo "TAG_APP=v${{ env.APP_VERSION }}-$(echo $GITHUB_SHA | cut -c1-7)" >> "$GITHUB_ENV"
+
+      - name: Set TAG_APP Output
+        id: set_tag
+        run: echo "image_tag=$TAG_APP" >> $GITHUB_OUTPUT
+
+      - name: Show image TAG
+        run: |
+          echo "Image TAG" $TAG_APP
+          echo "Image TAG" ${{ steps.set_tag.outputs.image_tag }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Requirements
+        run:  pip install flask
+
+      - name: Unit Test
+        run: python -m unittest -v test
 
       - name: Login to Docker Hub
         uses: docker/login-action@v3
@@ -81,32 +114,25 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: List files
-        run: ls -lha
-
       - name: Build an image from Dockerfile
         env:
           DOCKER_BUILDKIT: 1
         run: |
-          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/container-technologies:${{ env.TAG }} .
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.TAG_APP }} .
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: '${{ secrets.DOCKERHUB_USERNAME }}/container-technologies:${{ env.TAG }}'
+          image-ref: '${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.TAG_APP }}'
           format: 'table'
           exit-code: '1'
           ignore-unfixed: true
           vuln-type: 'os,library'
-          severity: 'CRITICAL,HIGH'
+          severity: 'CRITICAL'
 
       - name: Push image
         run: |
-          docker image push ${{ secrets.DOCKERHUB_USERNAME }}/container-technologies:${{ env.TAG }}
-
+          docker image push ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.TAG_APP }}
 ```
 10. Na raiz do projeto crie o diretório `app`:
 
@@ -126,9 +152,11 @@ CMD ["nginx", "-g", "daemon off;"]
 ```shell
 git add .
 ```
+
 ```shell
 git commmit -m "Criação do workflow"
 ```
+
 ```shell
 git push origin
 ```
