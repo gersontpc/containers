@@ -380,6 +380,11 @@ mkdir -p app/deploy && touch app/deploy/{ecs-task-definition.json,deploy.tf,outp
 
 17. No arquivo `ecs-task-definition.json` copie e cole o conteúdo abaixo:
 
+> Altere o ARN com o ID da sua conta, para funcionar o deploy!
+
+    "taskRoleArn": "arn:aws:iam::**893298020274**:role/LabRole"
+    "executionRoleArn": "arn:aws:iam::**893298020274**:role/LabRole"
+
 ```JSON
 {
     "containerDefinitions": [
