@@ -65,7 +65,6 @@ env:
   DESTROY: false
   IMAGE_NAME: ${{ github.event.repository.name }}
   APP_VERSION: 1.0.0
-  ENVIRONMENT: prod
 
 jobs:
   Build:
@@ -97,17 +96,6 @@ jobs:
           echo "Image TAG" $TAG_APP
           echo "Image TAG" ${{ steps.set_tag.outputs.image_tag }}
 
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      - name: Install Requirements
-        run:  pip install flask
-
-      - name: Unit Test
-        run: python -m unittest -v test
-
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
@@ -128,7 +116,7 @@ jobs:
           exit-code: '1'
           ignore-unfixed: true
           vuln-type: 'os,library'
-          severity: 'CRITICAL'
+          severity: 'CRITICAL,HIGH'
 
       - name: Push image
         run: |
