@@ -373,6 +373,8 @@ Benefícios do Container Insights:
 
 ### Realizando o deploy de uma aplicação
 
+![](img/provisionamento-eks-04.png)
+
 Agora que já entendemos os principais componentes do Cluster, iremos realizar o deploy de uma app, essa app será basicamente uma imagem do NGINX,  O NGINX é um servidor web de código aberto que pode ser usado para servir arquivos estáticos ou atuar como um proxy reverso para outros servidores web.
 
 
@@ -636,7 +638,9 @@ Events:          <none>
 
 ![](img/eks-app-09.png)
 
-### Acessando a App
+### Expondo a aplicação
+
+![](img/provisionamento-eks-05.png)
 
 Para acessar a app, precisamos expor o serviço em nosso cluster apontando para os nossos pods.
 
@@ -850,10 +854,7 @@ Vamos deletar os objetos que criamos dentro do nosso cluster Kubernetes
 
 ``` shell
 kubectl delete -f manifests/02-service-nginx.yaml
-```
 
-```shell
-OUTPUT:
 service "nginx" deleted
 ```
 
